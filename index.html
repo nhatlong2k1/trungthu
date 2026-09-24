@@ -860,23 +860,44 @@ const Music = {
     o.connect(g); o2.connect(g2); g2.connect(g); g.connect(this.dry); g.connect(this.rev);
     o.start(t); o2.start(t); o.stop(t + 3); o2.stop(t + 3);
   },
+  synthStart() {
+    if (!this.ctx && !this.init()) return false;
+    this.ctx.resume(); this.synthOn = true;
+    const t = this.ctx.currentTime; this.master.gain.cancelScheduledValues(t); this.master.gain.setTargetAtTime(0.55, t, 1.2);
+    clearTimeout(this.timer); this.loop(); return true;
+  },
+  synthStop() {
+    this.synthOn = false; clearTimeout(this.timer);
+    if (this.ctx) { const t = this.ctx.currentTime; this.master.gain.cancelScheduledValues(t); this.master.gain.setTargetAtTime(0, t, 0.4); }
+  },
   loop() {
-    if (!this.on) return;
+    if (!this.synthOn) return;
     if (Math.random() > 0.18) this.note();
     if (Math.random() < 0.18) this.note(0.14);
     this.timer = setTimeout(() => this.loop(), 420 + Math.random() * 950);
   },
+  // Plays nhac.mp3 (next to index.html) if it exists, otherwise falls back to the generated melody
   start() {
-    if (!this.ctx && !this.init()) return false;
-    this.ctx.resume(); this.on = true;
-    const t = this.ctx.currentTime; this.master.gain.cancelScheduledValues(t); this.master.gain.setTargetAtTime(0.55, t, 1.2);
-    clearTimeout(this.timer); this.loop(); return true;
+    this.on = true;
+    if (this.fileOK === false) return this.synthStart();
+    this.bgm.volume = 0.8;
+    const p = this.bgm.play();
+    if (p && p.catch) p.catch(() => { this.fileOK = false; if (this.on) this.synthStart(); });
+    return true;
   },
   stop() {
-    this.on = false; clearTimeout(this.timer);
-    if (this.ctx) { const t = this.ctx.currentTime; this.master.gain.cancelScheduledValues(t); this.master.gain.setTargetAtTime(0, t, 0.4); }
+    this.on = false;
+    this.bgm.pause();
+    this.synthStop();
   }
 };
+Music.bgm = new Audio('nhac.mp3');
+Music.bgm.loop = true;
+Music.bgm.preload = 'auto';
+Music.bgm.addEventListener('error', () => {
+  Music.fileOK = false;
+  if (Music.on && !Music.synthOn) Music.synthStart();
+});
 
 /* ================= UI wiring ================= */
 const $ = id => document.getElementById(id);
